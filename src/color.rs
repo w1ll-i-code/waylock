@@ -27,13 +27,10 @@ impl fmt::Display for Error {
 }
 
 pub fn from_str(s: &str) -> Result<u32, Error> {
-    let digits = if s.starts_with("0x") {
-        &s[2..]
-    } else if s.starts_with('#') {
-        &s[1..]
-    } else {
-        return Err(Error::InvalidPrefix);
-    };
+    let digits = None
+        .or_else(|| s.strip_prefix("0x"))
+        .or_else(|| s.strip_prefix('#'))
+        .map_or(Err(Error::InvalidPrefix), Ok)?;
 
     if digits.len() != 6 {
         return Err(Error::InvalidLength);
