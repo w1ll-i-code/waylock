@@ -74,13 +74,13 @@ impl LockSurface {
         // Mark the entire surface as opaque. This isn't strictly required, but serves as an
         // optimization hit for the compositor
         let region = compositor.create_region();
-        region.add(0, 0, i32::max_value(), i32::max_value());
+        region.add(0, 0, i32::MAX, i32::MAX);
         surface.set_opaque_region(Some(&region));
         region.destroy();
 
         let layer_surface = layer_shell.get_layer_surface(
             &surface,
-            Some(&output),
+            Some(output),
             zwlr_layer_shell_v1::Layer::Overlay,
             "lockscreen".to_owned(),
         );
@@ -173,8 +173,14 @@ impl LockSurface {
         let buffer = pool.buffer(0, width, height, stride, wl_shm::Format::Argb8888);
 
         // Write the current color to the buffer
-        for (ptr, byte) in pool.mmap().iter_mut().zip(self.color.to_ne_bytes().iter().cycle()) {
-            *ptr = *byte;
+        let ptr = pool.mmap().as_mut_ptr() as *mut u32;
+        let byte_buffer = unsafe { std::slice::from_raw_parts_mut(ptr, (width * height) as usize) };
+        byte_buffer.fill(0xff000000);
+
+        for i in 50..55 {
+            for j in 50..(width - 50) {
+                unsafe { *ptr.add((width * i + j ) as usize) = self.color; }
+            }
         }
 
         // Attach the buffer to the surface and mark the entire surface as damaged
