@@ -14,17 +14,20 @@ include = [
     "Cargo.lock",
     "Cargo.toml",
     "LICENSE",
-    "READEME.md",
+    "README.md",
     "waylock.toml",
     "**/*.rs",
 ]
 
 [dependencies]
-clap = "2"
-humantime = "2"
-log = { version = "0.4", features = ["std"] }
-pam = "0.7"
-serde = { version = "1", features = ["derive"] }
 smithay-client-toolkit = { version = "0.10", default-features = false, features = ["calloop"] }
-toml = "0.5"
+serde = { version = "1", features = ["derive"] }
+log = { version = "0.4", features = ["std"] }
+humantime = "2"
+fontdue = "0.6"
+chrono = "0.4"
 users = "0.10"
+nix = "0.23"
+toml = "0.5"
+pam = "0.7"
+clap = "2"

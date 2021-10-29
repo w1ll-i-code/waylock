@@ -1,16 +1,8 @@
-mod auth;
-mod env;
-mod input;
-mod output;
-mod surface;
-
-use crate::options::Options;
-
-use self::auth::LockAuth;
-use self::env::LockEnv;
-use self::input::LockInput;
-use self::output::OutputHandling;
-use self::surface::LockSurface;
+use std::borrow::BorrowMut;
+use std::io;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, UNIX_EPOCH};
 
 use smithay_client_toolkit::{
     reexports::{
@@ -23,12 +15,22 @@ use smithay_client_toolkit::{
     WaylandSource,
 };
 
-use std::cell::RefCell;
-use std::io;
-use std::process::Command;
-use std::rc::Rc;
+use crate::options::Options;
 
-#[derive(Copy, Clone)]
+use self::auth::LockAuth;
+use self::env::LockEnv;
+use self::input::LockInput;
+use self::output::OutputHandling;
+use self::surface::LockSurface;
+
+mod auth;
+mod env;
+mod input;
+mod output;
+mod surface;
+mod canvas;
+
+#[derive(Copy, Clone, PartialEq)]
 enum LockState {
     Init,
     Input,
@@ -48,11 +50,11 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
         let shm = lock_env.require_global::<wl_shm::WlShm>();
         let color = options.init_color;
 
-        let lock_surfaces = Rc::new(RefCell::new(Vec::new()));
+        let lock_surfaces = Arc::new(Mutex::new(Vec::new()));
 
-        let lock_surfaces_handle = Rc::clone(&lock_surfaces);
+        let lock_surfaces_handle = lock_surfaces.clone();
         lock_env.set_output_created_listener(Some(move |id, output| {
-            (*lock_surfaces_handle.borrow_mut()).push((
+            lock_surfaces_handle.lock().unwrap().borrow_mut().push((
                 id,
                 LockSurface::new(
                     &output,
@@ -64,9 +66,9 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
             ));
         }));
 
-        let lock_surfaces_handle = Rc::clone(&lock_surfaces);
+        let lock_surfaces_handle = lock_surfaces.clone();
         lock_env.set_output_removed_listener(Some(move |id| {
-            lock_surfaces_handle.borrow_mut().retain(|(i, _)| *i != id);
+            lock_surfaces_handle.lock().unwrap().borrow_mut().retain(|(i, _)| *i != id);
         }));
 
         lock_surfaces
@@ -83,11 +85,27 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
 
     let mut lock_state = LockState::Init;
 
-    let set_color = |color| {
-        for (_, lock_surface) in lock_surfaces.borrow_mut().iter_mut() {
+    let set_color = |color, num| {
+        for (_, lock_surface) in lock_surfaces.lock().unwrap().borrow_mut().iter_mut() {
             lock_surface.set_color(color);
+            lock_surface.chars_entered(num)
         }
     };
+
+    let timer = calloop::timer::Timer::new().unwrap();
+    let timer_handle = timer.handle();
+    timer_handle
+        .add_timeout(Duration::from_secs(60 - UNIX_EPOCH.elapsed().unwrap().as_secs() % 60), ());
+
+    let surface_ref = lock_surfaces.clone();
+    let _ = event_loop.handle().insert_source(timer, move |_event, metadata, _shared_data| {
+        for (_, lock_surface) in surface_ref.lock().unwrap().borrow_mut().iter_mut() {
+            lock_surface.set_redraw();
+            lock_surface.handle_events();
+        }
+        metadata.cancel_all_timeouts();
+        metadata.add_timeout(Duration::from_secs(60), ());
+    });
 
     loop {
         // Handle all input received since last check
@@ -97,14 +115,17 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
                     if lock_auth.check_password(&current_password) {
                         return Ok(());
                     } else {
-                        set_color(options.fail_color);
+                        set_color(options.fail_color, 0);
                         lock_state = LockState::Fail;
+                        current_password = String::new();
 
                         if let Some(command) = &options.fail_command {
                             if let Err(err) = Command::new("sh").arg("-c").arg(command).spawn() {
                                 log::warn!("Error executing fail command \"{}\": {}", command, err);
                             }
                         }
+
+                        continue;
                     }
                 }
                 keysyms::XKB_KEY_Delete | keysyms::XKB_KEY_BackSpace => {
@@ -119,24 +140,21 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
                     }
                 }
             }
-
-            match (lock_state, current_password.is_empty()) {
-                (LockState::Init, false) => {
-                    set_color(options.input_color);
-                    lock_state = LockState::Input;
-                }
-                (_, true) if !options.one_way => {
-                    set_color(options.init_color);
+            if current_password.is_empty() {
+                if lock_state != LockState::Fail {
+                    set_color(options.init_color, 0);
                     lock_state = LockState::Init;
                 }
-                _ => {}
+            } else {
+                set_color(options.input_color, current_password.len() as u32);
+                lock_state = LockState::Input;
             }
         }
 
         // This is ugly, let's hope that some version of drain_filter() gets stabilized soon
         // https://github.com/rust-lang/rust/issues/43244
         {
-            let mut lock_surfaces = lock_surfaces.borrow_mut();
+            let mut lock_surfaces = lock_surfaces.lock().unwrap();
             let mut i = 0;
             while i != lock_surfaces.len() {
                 if lock_surfaces[i].1.handle_events() {
