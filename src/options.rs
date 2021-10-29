@@ -92,7 +92,7 @@ impl Options {
 
         let mut fail_command = matches.value_of("fail-command").map(str::to_owned);
 
-        // The vaildator supplied to clap will deny any colors that can't be safetly unwrapped.
+        // The validator supplied to clap will deny any colors that can't be safely unwrapped.
         let mut init_color = matches.value_of("init-color").map(|s| color::from_str(s).unwrap());
         let mut input_color = matches.value_of("input-color").map(|s| color::from_str(s).unwrap());
         let mut fail_color = matches.value_of("fail-color").map(|s| color::from_str(s).unwrap());
