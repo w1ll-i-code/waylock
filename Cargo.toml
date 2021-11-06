@@ -23,6 +23,8 @@ include = [
 smithay-client-toolkit = { version = "0.10", default-features = false, features = ["calloop"] }
 serde = { version = "1", features = ["derive"] }
 log = { version = "0.4", features = ["std"] }
+font-loader = "0.11.0"
+structopt = "0.3"
 humantime = "2"
 fontdue = "0.6"
 chrono = "0.4"

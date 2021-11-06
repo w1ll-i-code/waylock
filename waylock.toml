@@ -2,9 +2,6 @@
 
 # Note: all fields are optional. If omitted a default value will be used.
 
-# If set to true, never revert the color after input or failure.
-one_way = false
-
 # Command to run on authentication failure. Executed with `sh -c <COMMAND>`.
 fail_command = "echo Failed unlock attempt!"
 

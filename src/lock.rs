@@ -15,13 +15,12 @@ use smithay_client_toolkit::{
     WaylandSource,
 };
 
-use crate::options::Options;
-
 use self::auth::LockAuth;
 use self::env::LockEnv;
 use self::input::LockInput;
 use self::output::OutputHandling;
 use self::surface::LockSurface;
+use crate::config::Config;
 
 mod auth;
 mod env;
@@ -31,13 +30,23 @@ mod surface;
 mod canvas;
 
 #[derive(Copy, Clone, PartialEq)]
-enum LockState {
+pub enum LockState {
     Init,
     Input,
     Fail,
 }
 
-pub fn lock_screen(options: &Options) -> io::Result<()> {
+impl LockState {
+    fn map_to_color(&self, config: Arc<Config>) -> u32 {
+        match self {
+            LockState::Init => config.colors.init_color,
+            LockState::Input => config.colors.input_color,
+            LockState::Fail => config.colors.fail_color,
+        }
+    }
+}
+
+pub fn lock_screen(config: Arc<Config>) -> io::Result<()> {
     let (lock_env, display, queue) = LockEnv::init_environment()?;
 
     let _inhibitor = lock_env
@@ -48,11 +57,11 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
         let compositor = lock_env.require_global::<wl_compositor::WlCompositor>();
         let layer_shell = lock_env.require_global::<zwlr_layer_shell_v1::ZwlrLayerShellV1>();
         let shm = lock_env.require_global::<wl_shm::WlShm>();
-        let color = options.init_color;
 
         let lock_surfaces = Arc::new(Mutex::new(Vec::new()));
 
         let lock_surfaces_handle = lock_surfaces.clone();
+        let config2 = config.clone();
         lock_env.set_output_created_listener(Some(move |id, output| {
             lock_surfaces_handle.lock().unwrap().borrow_mut().push((
                 id,
@@ -61,7 +70,7 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
                     &compositor.clone(),
                     &layer_shell.clone(),
                     shm.clone(),
-                    color,
+                    config2.clone(),
                 ),
             ));
         }));
@@ -85,10 +94,11 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
 
     let mut lock_state = LockState::Init;
 
-    let set_color = |color, num| {
+    let set_state = |state, num| {
         for (_, lock_surface) in lock_surfaces.lock().unwrap().borrow_mut().iter_mut() {
-            lock_surface.set_color(color);
-            lock_surface.chars_entered(num)
+            lock_surface.set_state(state);
+            lock_surface.chars_entered(num);
+            lock_surface.set_redraw();
         }
     };
 
@@ -115,12 +125,12 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
                     if lock_auth.check_password(&current_password) {
                         return Ok(());
                     } else {
-                        set_color(options.fail_color, 0);
                         lock_state = LockState::Fail;
+                        set_state(lock_state, 0);
                         current_password = String::new();
 
-                        if let Some(command) = &options.fail_command {
-                            if let Err(err) = Command::new("sh").arg("-c").arg(command).spawn() {
+                        if let Some(command) = &config.fail_command {
+                            if let Err(err) = Command::new("sh").arg("-c").arg(command.to_owned()).spawn() {
                                 log::warn!("Error executing fail command \"{}\": {}", command, err);
                             }
                         }
@@ -142,12 +152,12 @@ pub fn lock_screen(options: &Options) -> io::Result<()> {
             }
             if current_password.is_empty() {
                 if lock_state != LockState::Fail {
-                    set_color(options.init_color, 0);
                     lock_state = LockState::Init;
+                    set_state(lock_state, 0);
                 }
             } else {
-                set_color(options.input_color, current_password.len() as u32);
                 lock_state = LockState::Input;
+                set_state(lock_state, current_password.len() as u32);
             }
         }
 

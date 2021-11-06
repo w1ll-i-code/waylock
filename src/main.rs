@@ -5,20 +5,27 @@ use log::error;
 use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::{fork, ForkResult};
 
-use crate::lock::lock_screen;
-use crate::options::Options;
+use config::Config;
 
-mod color;
+use crate::lock::lock_screen;
+use std::sync::Arc;
+
 mod config;
 mod lock;
 mod logger;
-mod options;
 
 fn main() -> io::Result<()> {
-    let options = Options::new();
+    let options = match Config::new() {
+        Ok(config) => Arc::new(config),
+        Err(err) => {
+            println!("{}", err);
+            error!("{:?}", err);
+            exit(1);
+        }
+    };
     loop {
         match unsafe { fork() } {
-            Ok(ForkResult::Child) => match lock_screen(&options) {
+            Ok(ForkResult::Child) => match lock_screen(options) {
                 Ok(()) => exit(0),
                 Err(err) => {
                     error!("[MAIN] lock_screen error: {:?}", err);

@@ -13,11 +13,13 @@ use fontdue::layout::*;
 
 use crate::lock::canvas::Canvas;
 use chrono::Timelike;
-use fontdue::Font;
 use std::cell::Cell;
 use std::cmp::min;
 use std::rc::Rc;
 use std::{error, fmt, io};
+use crate::config::Config;
+use crate::lock::LockState;
+use std::sync::Arc;
 
 #[derive(PartialEq, Copy, Clone)]
 enum RenderEvent {
@@ -62,9 +64,9 @@ pub struct LockSurface {
     pools: DoubleMemPool,
     dimensions: (usize, usize),
     redraw: bool,
-    color: u32,
     chars_entered: u32,
-    fonts: [Font; 1],
+    state: LockState,
+    config: Arc<Config>,
 }
 
 impl LockSurface {
@@ -73,7 +75,7 @@ impl LockSurface {
         compositor: &Attached<wl_compositor::WlCompositor>,
         layer_shell: &Attached<zwlr_layer_shell_v1::ZwlrLayerShellV1>,
         shm: Attached<wl_shm::WlShm>,
-        color: u32,
+        config: Arc<Config>
     ) -> Self {
         let surface = compositor.create_surface();
         // We don't currently care about dpi awareness, but that may need to change eventually
@@ -127,36 +129,30 @@ impl LockSurface {
             panic!();
         });
 
-        let font =
-            include_bytes!("/home/will/.fonts/fonts/ttf/JetBrainsMono-Regular.ttf") as &[u8];
-        // Parse it into the font type.
-        let fonts = [fontdue::Font::from_bytes(font, fontdue::FontSettings::default()).unwrap()];
-
         Self {
             surface,
             layer_surface,
             next_render_event,
             pools,
             dimensions: (0, 0),
-            redraw: false,
-            color,
             chars_entered: 0,
-            fonts,
+            redraw: false,
+            state: LockState::Init,
+            config
         }
     }
 
     /// Set the color of the surface. Will not take effect until handle_events() is called.
-    pub fn set_color(&mut self, color: u32) {
-        self.color = color;
+    pub(crate) fn set_state(&mut self, state: LockState) {
+        self.state = state;
+    }
+
+    pub fn set_redraw(&mut self) {
         self.redraw = true
     }
 
     pub fn chars_entered(&mut self, num: u32) {
         self.chars_entered = num;
-    }
-
-    pub fn set_redraw(&mut self) {
-        self.redraw = true
     }
 
     /// Handles any events that have occurred since the last call, redrawing if needed.
@@ -173,10 +169,12 @@ impl LockSurface {
 
         if self.redraw {
             match self.redraw() {
-                Ok(()) => self.redraw = false,
+                Ok(()) => {}
                 Err(err) => log::error!("{}", err),
             }
         }
+
+        self.redraw = false;
 
         false
     }
@@ -196,13 +194,11 @@ impl LockSurface {
         let buffer =
             pool.buffer(0, width as i32, height as i32, stride as i32, wl_shm::Format::Argb8888);
 
-        let font = &self.fonts;
-
-        let start = std::time::Instant::now();
+        let font = &self.config.font;
 
         let ptr = pool.mmap().as_mut_ptr() as *mut u8;
         let mut canvas =
-            Canvas { mem: ptr, dimensions: (width, height), color: self.color, fonts: font };
+            Canvas { mem: ptr, dimensions: (width, height), color: self.state.map_to_color(self.config.clone()), fonts: font };
 
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(&LayoutSettings {
@@ -210,7 +206,7 @@ impl LockSurface {
             max_height: Some(self.dimensions.0 as f32 / 2f32),
             horizontal_align: HorizontalAlign::Center,
             vertical_align: VerticalAlign::Middle,
-            ..LayoutSettings::default()
+            .. LayoutSettings::default()
         });
 
         let text = {
@@ -220,19 +216,17 @@ impl LockSurface {
 
         layout.append(font, &TextStyle::new(&text, 64.0, 0));
 
-        let text = format!("User: {}\n", users::get_current_username().unwrap().to_str().unwrap());
+        let text = format!("User: {}\n", self.config.user);
         layout.append(font, &TextStyle::new(&text, 32.0, 0));
         let text = format!("pwd: {}", "*".to_string().repeat(min(self.chars_entered, 64) as usize));
         layout.append(font, &TextStyle::new(&text, 32.0, 0));
 
-        canvas.color = 0xff000000;
+        canvas.color = self.config.colors.bg_color;
         canvas.fill();
-        canvas.color = 0xffffffff;
+        canvas.color = self.config.colors.text_color;
         canvas.draw_layout(&mut layout);
-        canvas.color = self.color;
+        canvas.color = self.state.map_to_color(self.config.clone());
         canvas.draw_square((450, height / 2 + 50), (width - 450, height / 2 + 60));
-
-        println!("{}", start.elapsed().as_secs_f64());
 
         // Attach the buffer to the surface and mark the entire surface as damaged
         self.surface.attach(Some(&buffer), 0, 0);
