@@ -1,4 +1,4 @@
-use pam::Authenticator;
+use pam::{Authenticator, PamError};
 use users::get_current_username;
 
 pub struct LockAuth {
@@ -21,7 +21,7 @@ impl LockAuth {
     }
 
     /// Attempt to authenticate with PAM. Returns true on success, otherwise false.
-    pub fn check_password(&self, password: &str) -> bool {
+    pub fn check_password(&self, password: &str) -> Result<(), PamError> {
         let mut authenticator = match Authenticator::with_password("system-auth") {
             Ok(authenticator) => authenticator,
             Err(err) => {
@@ -30,12 +30,6 @@ impl LockAuth {
             }
         };
         authenticator.get_handler().set_credentials(&self.login, password);
-        match authenticator.authenticate() {
-            Ok(()) => true,
-            Err(err) => {
-                log::warn!("Authentication failure {}", err);
-                false
-            }
-        }
+        authenticator.authenticate()
     }
 }
