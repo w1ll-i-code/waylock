@@ -5,6 +5,12 @@
 # Command to run on authentication failure. Executed with `sh -c <COMMAND>`.
 fail_command = "echo Failed unlock attempt!"
 
+# Set the font for the shown text
+# font="JetBrainsMono"
+
+# Set maximal restarts/second if the process crashes. Default is 5. To endlessly restart, set the value to 0.
+max_restarts = 5
+
 [colors]
 # Specify the initial color of the lock screen.
 init_color = 0x002b36
