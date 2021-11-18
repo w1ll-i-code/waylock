@@ -24,6 +24,9 @@ pub struct Options {
     #[structopt(long)]
     pub font: Option<String>,
 
+    #[structopt(long)]
+    pub max_restarts: Option<usize>,
+
     #[structopt(flatten)]
     #[serde(default)]
     pub colors: Colors,

@@ -62,6 +62,7 @@ pub struct Config {
     pub fail_command: Option<String>,
     pub font: [Font; 1],
     pub user: String,
+    pub max_restarts: usize,
     pub colors: Colors,
 }
 
@@ -92,6 +93,7 @@ impl From<Options> for Config {
             fail_command: options.fail_command,
             font: [font],
             user: user.into_string().expect("Username could not be fetched"),
+            max_restarts: options.max_restarts.unwrap_or(5),
             colors: Colors {
                 init_color: options.colors.init_color.unwrap_or(0xffffffff) | 0xff000000,
                 input_color: options.colors.input_color.unwrap_or(0xff0000ff) | 0xff000000,
