@@ -1,5 +1,9 @@
 # waylock
 
+---
+### This is a modified fork from the 
+---
+
 Waylock is a simple screenlocker for wayland compositors. It takes inspiration
 from [slock](https://tools.suckless.org/slock/) with its minimalistic feature
 set, but is implemented in [rust](https://www.rust-lang.org/) for first class

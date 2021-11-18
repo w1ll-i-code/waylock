@@ -95,11 +95,11 @@ impl From<Options> for Config {
             user: user.into_string().expect("Username could not be fetched"),
             max_restarts: options.max_restarts.unwrap_or(5),
             colors: Colors {
-                init_color: options.colors.init_color.unwrap_or(0xffffffff) | 0xff000000,
-                input_color: options.colors.input_color.unwrap_or(0xff0000ff) | 0xff000000,
-                fail_color: options.colors.fail_color.unwrap_or(0xffff0000) | 0xff000000,
-                bg_color: options.colors.bg_color.unwrap_or(0xff000000) | 0xff000000,
-                text_color: options.colors.text_color.unwrap_or(0xffffffff) | 0xff000000,
+                init_color: options.colors.color_init.unwrap_or(0xffffffff) | 0xff000000,
+                input_color: options.colors.color_input.unwrap_or(0xff0000ff) | 0xff000000,
+                fail_color: options.colors.color_fail.unwrap_or(0xffff0000) | 0xff000000,
+                bg_color: options.colors.color_bg.unwrap_or(0xff000000) | 0xff000000,
+                text_color: options.colors.color_text.unwrap_or(0xffffffff) | 0xff000000,
             }
         }
     }

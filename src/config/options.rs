@@ -10,44 +10,54 @@ use log::{error, LevelFilter};
 
 #[derive(Debug, StructOpt, Deserialize)]
 pub struct Options {
-    #[structopt(long)]
+    #[structopt(long, verbatim_doc_comment)]
+    /// Command to be executed on a wrong entry of a password
     pub fail_command: Option<String>,
 
-    #[structopt(short = "v", parse(from_occurrences))]
+    #[structopt(short = "v", parse(from_occurrences), verbatim_doc_comment)]
     #[serde(skip)]
+    /// Log level, [None, Error, Warning, Info, Debug, Trace]. Default None.
     pub log_level: u64,
 
-    #[structopt(long, parse(from_os_str))]
+    #[structopt(short, long, parse(from_os_str), verbatim_doc_comment)]
     #[serde(skip)]
+    /// Path to a config file. Default ~/.config/waylock/
     pub config: Option<PathBuf>,
 
     #[structopt(long)]
+    /// Font for the GUI
     pub font: Option<String>,
 
-    #[structopt(long)]
+    #[structopt(long, verbatim_doc_comment)]
+    /// Max restarts/seconds before it stops to restart.
     pub max_restarts: Option<usize>,
 
-    #[structopt(flatten)]
+    #[structopt(flatten, verbatim_doc_comment)]
     #[serde(default)]
     pub colors: Colors,
 }
 
 #[derive(Debug, StructOpt, Deserialize, Default)]
 pub struct Colors {
-    #[structopt(long, parse(try_from_str = color::from_str))]
-    pub init_color: Option<u32>,
+    #[structopt(short = "C", long, parse(try_from_str = color::from_str), verbatim_doc_comment)]
+    /// Color of the GUI bar, when the lock is initialized
+    pub color_init: Option<u32>,
 
-    #[structopt(long, parse(try_from_str = color::from_str))]
-    pub input_color: Option<u32>,
+    #[structopt(short = "C", long, parse(try_from_str = color::from_str), verbatim_doc_comment)]
+    /// Color of the GUI bar, during typing
+    pub color_input: Option<u32>,
 
-    #[structopt(long, parse(try_from_str = color::from_str))]
-    pub fail_color: Option<u32>,
+    #[structopt(long, parse(try_from_str = color::from_str), verbatim_doc_comment)]
+    /// Color of the GUI bar, if the password was wrong
+    pub color_fail: Option<u32>,
 
-    #[structopt(long, parse(try_from_str = color::from_str))]
-    pub bg_color: Option<u32>,
+    #[structopt(long, parse(try_from_str = color::from_str), verbatim_doc_comment)]
+    /// Static background color of the GUI.
+    pub color_bg: Option<u32>,
 
-    #[structopt(long, parse(try_from_str = color::from_str))]
-    pub text_color: Option<u32>,
+    #[structopt(long, parse(try_from_str = color::from_str), verbatim_doc_comment)]
+    /// Color of the text displayed
+    pub color_text: Option<u32>,
 }
 
 fn default_config_path() -> Result<PathBuf, ConfigError> {
@@ -94,12 +104,12 @@ impl Options {
         if self.fail_command.is_none() { self.fail_command = other.fail_command; }
         if self.font.is_none() { self.font = other.font; }
 
-        if self.colors.init_color.is_none() { self.colors.init_color = other.colors.init_color; }
-        if self.colors.input_color.is_none() { self.colors.input_color = other.colors.input_color; }
-        if self.colors.fail_color.is_none() { self.colors.fail_color = other.colors.fail_color; }
+        if self.colors.color_init.is_none() { self.colors.color_init = other.colors.color_init; }
+        if self.colors.color_input.is_none() { self.colors.color_input = other.colors.color_input; }
+        if self.colors.color_fail.is_none() { self.colors.color_fail = other.colors.color_fail; }
 
-        if self.colors.bg_color.is_none() { self.colors.bg_color = other.colors.bg_color; }
-        if self.colors.text_color.is_none() { self.colors.text_color = other.colors.text_color; }
+        if self.colors.color_bg.is_none() { self.colors.color_bg = other.colors.color_bg; }
+        if self.colors.color_text.is_none() { self.colors.color_text = other.colors.color_text; }
 
         self
     }
